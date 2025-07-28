@@ -54,13 +54,16 @@
             <div class="modal-content card w-11/12 max-w-2xl text-left">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4">Panduan Konfigurasi</h2>
                 <div class="space-y-4 text-sm text-gray-700">
-                    <details class="p-2 border rounded-lg">
+                    <details class="p-2 border rounded-lg" open>
                         <summary class="font-semibold cursor-pointer">1. Cara Mendapatkan URL Web App Google Sheet</summary>
                         <div class="mt-2 space-y-1 pl-4">
-                            <p>Anda memerlukan skrip khusus untuk menyimpan hasil kuis.</p>
                             <p>1. Buat Google Sheet baru di <a href="https://sheets.google.com/create" target="_blank" class="text-indigo-600 hover:underline">sheets.google.com/create</a>.</p>
                             <p>2. Di dalam Sheet, klik menu <strong>Extensions > Apps Script</strong>.</p>
-                            <p>3. Hapus semua kode contoh, lalu salin & tempel kode skrip yang disediakan oleh aplikasi ini.</p>
+                            <p>3. Hapus semua kode contoh, lalu salin & tempel kode di bawah ini:</p>
+                            <div class="relative my-2">
+                                <button onclick="copyScriptToClipboard(this)" class="absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold py-1 px-2 rounded">Salin Kode</button>
+                                <pre class="bg-gray-100 p-2 rounded-md text-xs overflow-x-auto"><code>// Kode akan disisipkan di sini oleh JavaScript</code></pre>
+                            </div>
                             <p>4. Klik <strong>Deploy > New deployment</strong>.</p>
                             <p>5. Klik ikon gerigi (⚙️), pilih <strong>Web app</strong>.</p>
                             <p>6. Pada "Who has access", pilih <strong>Anyone</strong>.</p>
@@ -340,6 +343,8 @@
     }
 
     function showHelpModal() {
+        const scriptCode = getAppsScriptCode();
+        document.querySelector('#help-modal code').textContent = scriptCode;
         document.getElementById('help-modal').classList.remove('hidden');
     }
 
@@ -847,6 +852,158 @@
         }
     }
 
+    function getAppsScriptCode() {
+        return `
+// Konfigurasi
+var SHEET_NAME = "Hasil Kuis";
+
+function getResultsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+  }
+  return sheet;
+}
+
+function checkAndCreateHeaders(sheet) {
+  if (sheet.getLastRow() === 0) {
+    var headers = ['Timestamp', 'Nama', 'Perusahaan', 'No. WhatsApp', 'Jawaban Benar', 'Waktu (detik)', 'Skor Akhir'];
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
+    headers.forEach((_, i) => sheet.autoResizeColumn(i + 1));
+  }
+}
+
+function doPost(e) {
+  try {
+    if (!e.postData || !e.postData.contents) {
+      throw new Error("Tidak ada data POST yang diterima.");
+    }
+    var data = JSON.parse(e.postData.contents);
+    
+    switch (data.action) {
+      case 'saveQuiz':
+        return handleSaveQuiz(data);
+      case 'saveResult':
+        return handleSaveResult(data);
+      default:
+        throw new Error("Tindakan POST tidak valid: " + data.action);
+    }
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ result: "error", message: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  try {
+    var action = e.parameter.action;
+    switch (action) {
+      case 'getQuiz':
+        return handleGetQuiz();
+      case 'getLeaderboard':
+        return handleGetLeaderboard();
+      default:
+        throw new Error("Tindakan GET tidak valid: " + action);
+    }
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, message: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function handleSaveQuiz(data) {
+  var scriptProperties = PropertiesService.getScriptProperties();
+  scriptProperties.setProperty('activeQuiz', JSON.stringify(data.questions));
+  scriptProperties.setProperty('quizStatus', 'active');
+  return ContentService
+    .createTextOutput(JSON.stringify({ result: "success", message: "Kuis disimpan dan diaktifkan." }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleSaveResult(data) {
+  var sheet = getResultsSheet();
+  checkAndCreateHeaders(sheet);
+  
+  sheet.appendRow([
+    data.timestamp, data.name, data.company, data.phone,
+    data.correctAnswers, data.timeTaken, data.finalScore
+  ]);
+
+  if (sheet.getLastRow() > 1) {
+    var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn());
+    range.sort({ column: 7, ascending: false });
+  }
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ result: "success", message: "Hasil disimpan." }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleGetQuiz() {
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var quizStatus = scriptProperties.getProperty('quizStatus');
+  
+  if (quizStatus === 'active') {
+    var questions = scriptProperties.getProperty('activeQuiz');
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: true, isActive: true, questions: JSON.parse(questions) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } else {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: true, isActive: false }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function handleGetLeaderboard() {
+  var sheet = getResultsSheet();
+  checkAndCreateHeaders(sheet);
+  var values = sheet.getDataRange().getValues();
+  
+  if (values.length < 2) {
+    return ContentService.createTextOutput(JSON.stringify({ success: true, leaderboard: [] })).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  values.shift();
+  
+  var NAME_COLUMN_INDEX = 1; 
+  var SCORE_COLUMN_INDEX = 6;
+
+  var leaderboard = values.map(function(row) {
+    if (row && row.length > SCORE_COLUMN_INDEX && row[NAME_COLUMN_INDEX] && row[SCORE_COLUMN_INDEX] !== undefined && row[SCORE_COLUMN_INDEX] !== '') {
+        return {
+          nama: row[NAME_COLUMN_INDEX],
+          skorAkhir: parseFloat(row[SCORE_COLUMN_INDEX])
+        };
+    }
+    return null;
+  }).filter(item => item !== null)
+  .sort((a, b) => b.skorAkhir - a.skorAkhir);
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ success: true, leaderboard: leaderboard }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+        `.trim();
+    }
+
+    function copyScriptToClipboard(button) {
+        const code = getAppsScriptCode();
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        button.textContent = 'Tersalin!';
+        setTimeout(() => {
+            button.textContent = 'Salin Kode';
+        }, 2000);
+    }
 
     // --- INITIALIZATION ---
     window.onload = () => {
