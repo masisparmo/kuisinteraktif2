@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kuis Interaktif Seminar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .card { background-color: white; border-radius: 1rem; padding: 2rem; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); transition: all 0.3s ease-in-out; }
+        .btn { display: inline-block; text-align: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; color: white; transition: background-color 0.2s; cursor: pointer; border: none; }
+        .btn-primary { background-color: #4f46e5; }
+        .btn-primary:hover { background-color: #4338ca; }
+        .btn-secondary { background-color: #6b7280; }
+        .btn-secondary:hover { background-color: #4b5563; }
+        .btn:disabled { background-color: #d1d5db; cursor: not-allowed; }
+        .quiz-option { border: 1px solid #e5e7eb; cursor: pointer; }
+        .quiz-option:hover { background-color: #f3f4f6; border-color: #4f46e5; }
+        .quiz-option.selected { background-color: #e0e7ff; border-color: #4f46e5; color: #3730a3; }
+        .loader { border: 4px solid #f3f4f6; border-top: 4px solid #4f46e5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 50; }
+        .modal-content { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 60; }
+    </style>
+</head>
+<body class="bg-slate-100">
+
+    <div id="app-container" class="max-w-xl w-full mx-auto p-4">
+
+        <!-- ===== HALAMAN UTAMA (PEMILIHAN ROLE) ===== -->
+        <div id="role-selection-page" class="card text-center">
+            <h1 class="text-2xl font-bold text-gray-800">Selamat Datang!</h1>
+            <p class="text-gray-500 mt-2 mb-8">Silakan pilih peran Anda untuk melanjutkan.</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <button onclick="showAdminLoginPage()" class="btn btn-primary">Saya Pembicara (Admin)</button>
+                <button onclick="showParticipantPage()" class="btn btn-secondary">Saya Peserta</button>
+            </div>
+        </div>
+        
+        <!-- ===== MODAL ALERT ===== -->
+        <div id="alert-modal" class="modal-backdrop hidden justify-center items-center">
+            <div class="modal-content card w-11/12 max-w-sm text-center">
+                <h3 id="alert-title" class="text-lg font-bold text-gray-800">Pemberitahuan</h3>
+                <p id="alert-message" class="text-gray-600 my-4">Ini adalah pesan alert.</p>
+                <button onclick="closeAlert()" class="btn btn-primary mx-auto">Tutup</button>
+            </div>
+        </div>
+
+        <!-- ===== BAGIAN ADMIN ===== -->
+        <div id="admin-section" class="hidden w-full space-y-6">
+            <!-- Halaman Login Admin -->
+            <div id="admin-login-page" class="card">
+                <h2 class="text-xl font-bold text-center mb-6">Login Admin</h2>
+                <label for="admin-password" class="block text-sm font-medium text-gray-700">Password</label>
+                <input type="password" id="admin-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                <button onclick="loginAdmin()" class="btn btn-primary w-full mt-4">Login</button>
+                <button onclick="showRoleSelectionPage()" class="btn btn-secondary w-full mt-2">Kembali</button>
+            </div>
+
+            <!-- Halaman Dashboard Admin -->
+            <div id="admin-dashboard-page" class="hidden space-y-6">
+                <div class="card">
+                    <h2 class="text-xl font-bold mb-4">1. Konfigurasi</h2>
+                    <div>
+                        <label for="google-sheet-url" class="block text-sm font-medium text-gray-700">URL Web App Google Sheet</label>
+                        <input type="url" id="google-sheet-url" placeholder="Tempel URL dari Google Apps Script di sini" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div class="mt-4">
+                        <label for="gemini-api-key" class="block text-sm font-medium text-gray-700">Kunci API Gemini</label>
+                        <input type="password" id="gemini-api-key" placeholder="Tempel Kunci API Gemini Anda di sini" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div class="mt-4">
+                        <label for="public-app-url" class="block text-sm font-medium text-gray-700">URL Publik Aplikasi Anda (Wajib diisi)</label>
+                        <input type="url" id="public-app-url" placeholder="Contoh: https://namaanda.github.io/kuis/" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div class="mt-4">
+                        <label for="bitly-token" class="block text-sm font-medium text-gray-700">Bitly Access Token (Opsional)</label>
+                        <input type="password" id="bitly-token" placeholder="Tempel Token Bitly untuk URL pendek" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <button onclick="saveConfig()" class="btn btn-primary mt-4">Simpan Konfigurasi</button>
+                </div>
+
+                <div class="card">
+                    <h2 class="text-xl font-bold mb-4">2. Buat Kuis dari PDF</h2>
+                    <div class="mb-4">
+                        <label for="question-count" class="block text-sm font-medium text-gray-700">Jumlah Soal</label>
+                        <select id="question-count" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                            <option value="5">5 Soal</option>
+                            <option value="10">10 Soal</option>
+                            <option value="15">15 Soal</option>
+                            <option value="20">20 Soal</option>
+                            <option value="custom">Jumlah Lainnya...</option>
+                        </select>
+                        <input type="number" id="custom-question-count" class="mt-2 hidden w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="Masukkan jumlah soal" min="1" max="50">
+                    </div>
+                    <p class="text-sm text-gray-500 mb-3">Unggah e-book (PDF). AI akan membuatkan soal berdasarkan isinya.</p>
+                    <input type="file" id="pdf-upload" accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                    <button id="generate-quiz-btn" onclick="generateQuizFromPDF()" class="btn btn-primary w-full mt-4" disabled>Buat Soal dengan AI</button>
+                    <div id="generation-loader" class="hidden mx-auto mt-4 loader"></div>
+                    <p id="generation-status" class="text-center text-sm text-gray-500 mt-2"></p>
+                </div>
+
+                <div id="quiz-review-section" class="card hidden">
+                    <h2 class="text-xl font-bold mb-4">3. Tinjau Soal</h2>
+                    <div id="quiz-review-form" class="space-y-4"></div>
+                    <button onclick="saveQuiz()" class="btn btn-primary w-full mt-6">Simpan & Aktifkan Kuis</button>
+                </div>
+                
+                <div id="quiz-active-section" class="card hidden">
+                    <h2 class="text-xl font-bold text-center mb-4">🎉 Kuis Siap Digunakan! 🎉</h2>
+                    <p class="text-center text-gray-600">Bagikan QR Code atau link di bawah ini kepada peserta seminar.</p>
+                    <div class="flex justify-center my-4">
+                        <canvas id="qr-code"></canvas>
+                    </div>
+                    <p class="text-center font-mono bg-gray-100 p-2 rounded break-all" id="quiz-link"></p>
+                    <button onclick="showDashboardAndLeaderboard()" class="btn btn-primary w-full mt-6">Lihat Leaderboard</button>
+                </div>
+
+                <!-- Leaderboard Section now part of the dashboard -->
+                <div id="leaderboard-section" class="card hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold">🏆 Leaderboard</h2>
+                        <button onclick="fetchLeaderboard()" class="btn btn-secondary">Refresh</button>
+                    </div>
+                    <div id="leaderboard-loader" class="hidden mx-auto loader"></div>
+                    <div id="leaderboard-content" class="overflow-x-auto"></div>
+                    <button onclick="hideLeaderboard()" class="btn btn-secondary w-full mt-4">Sembunyikan Leaderboard</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== BAGIAN PESERTA ===== -->
+        <div id="participant-section" class="hidden w-full">
+            <!-- Halaman Pendaftaran Peserta -->
+            <div id="register-page" class="card">
+                <div class="text-center mb-6">
+                    <h1 class="text-2xl font-bold text-gray-800">Kuis Interaktif Seminar</h1>
+                    <p class="text-gray-500 mt-1">Isi data diri untuk memulai!</p>
+                </div>
+                <div id="quiz-not-ready-msg" class="text-center bg-yellow-100 p-3 rounded-lg text-yellow-800 hidden">
+                    <p>Kuis belum dimulai oleh pembicara. Mohon tunggu sebentar.</p>
+                </div>
+                <div id="participant-loader" class="hidden mx-auto my-4 loader"></div>
+                <form id="register-form" class="space-y-4 mt-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Nama Lengkap</label>
+                        <input type="text" id="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="company" class="block text-sm font-medium text-gray-700">Perusahaan / Institusi</label>
+                        <input type="text" id="company" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div>
+                        <label for="phone" class="block text-sm font-medium text-gray-700">No. WhatsApp</label>
+                        <input type="tel" id="phone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div class="pt-4">
+                        <button id="start-quiz-btn" type="submit" class="btn btn-primary w-full">Mulai Kuis</button>
+                    </div>
+                </form>
+                 <button onclick="showRoleSelectionPage()" class="btn btn-secondary w-full mt-2">Kembali</button>
+            </div>
+
+            <!-- Halaman Kuis -->
+            <div id="quiz-page" class="card hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <div id="question-counter" class="text-sm font-semibold text-indigo-600">Soal 1 / 5</div>
+                    <div id="timer" class="text-sm font-bold text-gray-800 bg-gray-200 px-3 py-1 rounded-full">Waktu: 00:00</div>
+                </div>
+                <div class="mb-6">
+                    <h2 id="question-text" class="text-lg font-semibold text-gray-900 text-center"></h2>
+                </div>
+                <div id="options-container" class="space-y-3"></div>
+                <div class="mt-8">
+                     <button id="next-btn" class="btn btn-primary w-full opacity-50" disabled>Selanjutnya</button>
+                </div>
+            </div>
+
+            <!-- Halaman Hasil -->
+            <div id="result-page" class="card hidden">
+                <div class="text-center">
+                    <h1 class="text-2xl font-bold text-gray-800">Hasil Kuis Anda</h1>
+                    <p class="text-gray-600 mt-2">Terima kasih telah berpartisipasi!</p>
+                </div>
+
+                <div class="mt-6 bg-slate-50 p-4 rounded-lg space-y-2">
+                    <div class="flex justify-between"><span class="font-semibold">Nama:</span> <span id="result-name"></span></div>
+                    <div class="flex justify-between"><span class="font-semibold">Perusahaan:</span> <span id="result-company"></span></div>
+                    <div class="flex justify-between"><span class="font-semibold">Durasi:</span> <span id="result-time"></span></div>
+                    <div class="flex justify-between text-lg"><span class="font-bold">Skor Akhir:</span> <span id="result-score" class="font-bold text-indigo-600"></span></div>
+                </div>
+
+                <div class="mt-6">
+                    <h2 class="text-xl font-bold text-center mb-4">Tinjauan Jawaban</h2>
+                    <div id="quiz-review-details" class="space-y-4">
+                        <!-- Detail jawaban akan di-generate oleh JavaScript -->
+                    </div>
+                </div>
+
+                <button onclick="showRoleSelectionPage()" class="btn btn-secondary w-full mt-8">Selesai</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // --- GLOBAL STATE & CONFIG ---
+    let appState = {
+        adminPassword: "seminar-keren-2025", // Ganti password di sini
+        googleSheetUrl: '',
+        geminiApiKey: '',
+        bitlyToken: '',
+        publicAppUrl: '',
+        quizQuestions: [],
+        quizIsActive: false,
+        maxTime: 180, // 3 menit dalam detik
+        participantData: {},
+        quizTimer: null,
+        quizSeconds: 0,
+        userAnswers: [],
+        selectedOption: null,
+        currentQuestionIndex: 0
+    };
+
+    // --- DOM ELEMENTS ---
+    const allPages = document.querySelectorAll('#app-container > div, #admin-section > div, #participant-section > div');
+    const roleSelectionPage = document.getElementById('role-selection-page');
+    // Admin
+    const adminSection = document.getElementById('admin-section');
+    const adminLoginPage = document.getElementById('admin-login-page');
+    const adminDashboardPage = document.getElementById('admin-dashboard-page');
+    const generateQuizBtn = document.getElementById('generate-quiz-btn');
+    const googleSheetUrlInput = document.getElementById('google-sheet-url');
+    const geminiApiKeyInput = document.getElementById('gemini-api-key');
+    const bitlyTokenInput = document.getElementById('bitly-token');
+    const publicAppUrlInput = document.getElementById('public-app-url');
+    const pdfUploadInput = document.getElementById('pdf-upload');
+    const questionCountSelect = document.getElementById('question-count');
+    const customQuestionCountInput = document.getElementById('custom-question-count');
+    const generationLoader = document.getElementById('generation-loader');
+    const generationStatus = document.getElementById('generation-status');
+    const quizReviewSection = document.getElementById('quiz-review-section');
+    const quizReviewForm = document.getElementById('quiz-review-form');
+    const quizActiveSection = document.getElementById('quiz-active-section');
+    const leaderboardSection = document.getElementById('leaderboard-section');
+    // Participant
+    const participantSection = document.getElementById('participant-section');
+    const registerPage = document.getElementById('register-page');
+    const startQuizBtn = document.getElementById('start-quiz-btn');
+    const quizNotReadyMsg = document.getElementById('quiz-not-ready-msg');
+    const participantLoader = document.getElementById('participant-loader');
+    const quizPage = document.getElementById('quiz-page');
+    const resultPage = document.getElementById('result-page');
+    const questionCounter = document.getElementById('question-counter');
+    const timerEl = document.getElementById('timer');
+    const questionText = document.getElementById('question-text');
+    const optionsContainer = document.getElementById('options-container');
+    const nextBtn = document.getElementById('next-btn');
+    // Result Page
+    const resultName = document.getElementById('result-name');
+    const resultCompany = document.getElementById('result-company');
+    const resultTime = document.getElementById('result-time');
+    const resultScore = document.getElementById('result-score');
+    const quizReviewDetails = document.getElementById('quiz-review-details');
+
+
+    // --- UTILITY & PAGE NAVIGATION ---
+    function showAlert(title, message) {
+        document.getElementById('alert-title').textContent = title;
+        document.getElementById('alert-message').textContent = message;
+        document.getElementById('alert-modal').classList.remove('hidden');
+        document.getElementById('alert-modal').classList.add('flex');
+    }
+
+    function closeAlert() {
+        document.getElementById('alert-modal').classList.add('hidden');
+        document.getElementById('alert-modal').classList.remove('flex');
+    }
+
+    function showPage(pageElement) {
+        allPages.forEach(p => p.classList.add('hidden'));
+        if(adminSection.contains(pageElement) || pageElement === adminSection) {
+            adminSection.classList.remove('hidden');
+        } else if(participantSection.contains(pageElement) || pageElement === participantSection) {
+            participantSection.classList.remove('hidden');
+        }
+        pageElement.classList.remove('hidden');
+    }
+
+    function showRoleSelectionPage() {
+        showPage(roleSelectionPage);
+    }
+
+    function showAdminLoginPage() {
+        showPage(adminLoginPage);
+    }
+    
+    function showAdminDashboard() {
+        showPage(adminDashboardPage);
+    }
+
+    function showParticipantPage() {
+        showPage(participantSection);
+        showPage(registerPage);
+        quizNotReadyMsg.classList.add('hidden'); // Hide message initially
+    }
+    
+    function showDashboardAndLeaderboard() {
+        showAdminDashboard();
+        leaderboardSection.classList.remove('hidden');
+        fetchLeaderboard();
+    }
+    
+    function hideLeaderboard() {
+        leaderboardSection.classList.add('hidden');
+    }
+
+    // --- ADMIN FUNCTIONS ---
+    function loginAdmin() {
+        const password = document.getElementById('admin-password').value;
+        if (password === appState.adminPassword) {
+            showAdminDashboard();
+        } else {
+            showAlert("Login Gagal", "Password yang Anda masukkan salah.");
+        }
+    }
+
+    function saveConfig() {
+        let url = googleSheetUrlInput.value.trim();
+        const apiKey = geminiApiKeyInput.value;
+        const bitlyToken = bitlyTokenInput.value.trim();
+        const publicUrl = publicAppUrlInput.value.trim();
+
+        const execIndex = url.indexOf('/exec');
+        if (execIndex !== -1) {
+            url = url.substring(0, execIndex + 5);
+        }
+
+        if (url && url.startsWith('https://script.google.com/macros/s/') && apiKey && publicUrl) {
+            appState.googleSheetUrl = url;
+            appState.geminiApiKey = apiKey;
+            appState.bitlyToken = bitlyToken;
+            appState.publicAppUrl = publicUrl;
+            googleSheetUrlInput.value = url;
+            localStorage.setItem('googleSheetUrl', url);
+            localStorage.setItem('geminiApiKey', apiKey);
+            localStorage.setItem('bitlyToken', bitlyToken);
+            localStorage.setItem('publicAppUrl', publicUrl);
+            generateQuizBtn.disabled = false;
+            showAlert("Sukses", "Konfigurasi berhasil disimpan.");
+        } else {
+            showAlert("Error", "Harap isi semua kolom konfigurasi yang wajib (URL Sheet, API Key, dan URL Publik).");
+        }
+    }
+
+    async function generateQuizFromPDF() {
+        const file = pdfUploadInput.files[0];
+        if (!file) {
+            showAlert("Error", "Silakan pilih file PDF terlebih dahulu.");
+            return;
+        }
+
+        let numQuestions = questionCountSelect.value;
+        if (numQuestions === 'custom') {
+            numQuestions = customQuestionCountInput.value;
+        }
+        if (!numQuestions || numQuestions < 1) {
+            showAlert("Error", "Jumlah soal tidak valid.");
+            return;
+        }
+
+        generationLoader.classList.remove('hidden');
+        generationStatus.textContent = "Mengekstrak teks dari PDF...";
+        generateQuizBtn.disabled = true;
+
+        try {
+            const pdfText = await extractTextFromPDF(file);
+            generationStatus.textContent = "Teks berhasil diekstrak. Menghubungi AI untuk membuat soal...";
+            
+            const prompt = `Berdasarkan teks dari dokumen berikut, buatlah kuis pilihan ganda dengan tepat ${numQuestions} pertanyaan dalam Bahasa Indonesia. Buat variasi tingkat kesulitan soal dari yang mudah hingga tingkat lanjut. Pertanyaan harus fokus pada inti dan konsep dari konten, BUKAN tentang metadata seperti nama pengarang, tahun terbit, atau edisi buku. Untuk setiap pertanyaan, berikan 4 pilihan jawaban, di mana satu adalah jawaban yang benar dan tiga lainnya adalah pengecoh yang masuk akal namun salah. Kembalikan hasilnya dalam format JSON array of objects. Setiap objek harus memiliki tiga kunci: "question" (string dalam Bahasa Indonesia), "options" (sebuah array berisi 4 string dalam Bahasa Indonesia), dan "answer" (string jawaban yang benar dari pilihan yang ada). Jangan sertakan penjelasan apa pun, hanya JSON saja. Teksnya adalah: \n\n---\n${pdfText.substring(0, 8000)}\n---`;
+            
+            const generatedQuestions = await callGeminiAPI(prompt, appState.geminiApiKey);
+            
+            appState.quizQuestions = JSON.parse(generatedQuestions);
+            displayQuizForReview();
+            generationStatus.textContent = "Soal berhasil dibuat! Silakan tinjau di bawah.";
+        } catch (error) {
+            console.error(error);
+            showAlert("Error", "Gagal membuat soal. " + error.message);
+            generationStatus.textContent = "Terjadi kesalahan.";
+        } finally {
+            generationLoader.classList.add('hidden');
+            generateQuizBtn.disabled = false;
+        }
+    }
+    
+    async function callGeminiAPI(prompt, apiKey) {
+        if (!apiKey) {
+             throw new Error("Kunci API Gemini tidak tersedia. Harap konfigurasikan di halaman admin.");
+        }
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+        const payload = {
+            contents: [{
+                parts: [{ text: prompt }]
+            }],
+            generationConfig: {
+                responseMimeType: "application/json"
+            }
+        };
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error("Gemini API Error Body:", errorBody);
+            throw new Error(`Gemini API request failed with status ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+            const jsonText = result.candidates[0].content.parts[0].text;
+            return jsonText;
+        } else {
+            console.error("Unexpected Gemini API response structure:", result);
+            throw new Error("Failed to parse response from Gemini API.");
+        }
+    }
+
+
+    function extractTextFromPDF(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const pdf = await pdfjsLib.getDocument({ data: event.target.result }).promise;
+                    let textContent = '';
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const text = await page.getTextContent();
+                        textContent += text.items.map(s => s.str).join(' ');
+                    }
+                    resolve(textContent);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    function displayQuizForReview() {
+        quizReviewForm.innerHTML = '';
+        appState.quizQuestions.forEach((q, index) => {
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'p-4 border rounded-lg';
+            questionDiv.innerHTML = `
+                <label class="block font-semibold">Soal ${index + 1}:</label>
+                <input type="text" value="${q.question}" class="w-full border-gray-300 rounded-md mt-1 p-2" data-q-index="${index}" data-type="question">
+                <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    ${q.options.map((opt, i) => `
+                        <div>
+                            <label class="text-sm">Opsi ${i+1}:</label>
+                            <input type="text" value="${opt}" class="w-full border-gray-300 rounded-md p-1" data-q-index="${index}" data-opt-index="${i}">
+                        </div>
+                    `).join('')}
+                </div>
+                <label class="block text-sm mt-2">Jawaban Benar:</label>
+                <select class="border-gray-300 rounded-md p-1" data-q-index="${index}" data-type="answer">
+                    ${q.options.map(opt => `<option value="${opt}" ${opt === q.answer ? 'selected' : ''}>${opt}</option>`).join('')}
+                </select>
+            `;
+            quizReviewForm.appendChild(questionDiv);
+        });
+        quizReviewSection.classList.remove('hidden');
+    }
+
+    async function saveQuiz() {
+        const updatedQuestions = [];
+        document.querySelectorAll('#quiz-review-form > div').forEach((div, index) => {
+            const question = div.querySelector('input[data-type="question"]').value;
+            const options = Array.from(div.querySelectorAll('input[data-opt-index]')).map(inp => inp.value);
+            const answer = div.querySelector('select[data-type="answer"]').value;
+            updatedQuestions.push({ question, options, answer });
+        });
+        appState.quizQuestions = updatedQuestions;
+        
+        try {
+            await fetch(appState.googleSheetUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'saveQuiz', questions: appState.quizQuestions })
+            });
+
+            appState.quizIsActive = true;
+            quizReviewSection.classList.add('hidden');
+            quizActiveSection.classList.remove('hidden');
+            
+            const baseUrl = appState.publicAppUrl || `${window.location.origin}${window.location.pathname}`;
+            const longLink = `${baseUrl}?scriptUrl=${encodeURIComponent(appState.googleSheetUrl)}`;
+            
+            updateLinkAndQRCode(longLink);
+
+            if (appState.bitlyToken) {
+                const shortLink = await shortenUrlWithBitly(longLink);
+                updateLinkAndQRCode(shortLink);
+            }
+
+            showAlert("Sukses!", "Kuis telah dikirim ke server untuk diaktifkan.");
+
+        } catch (error) {
+            console.error("Failed to save quiz:", error);
+            showAlert("Error", "Gagal mengirim permintaan simpan kuis. Periksa koneksi Anda.");
+        }
+    }
+
+    function updateLinkAndQRCode(link) {
+        document.getElementById('quiz-link').textContent = link;
+        new QRious({
+            element: document.getElementById('qr-code'),
+            value: link,
+            size: 200
+        });
+    }
+
+    async function shortenUrlWithBitly(longUrl) {
+        if (!appState.bitlyToken) return longUrl;
+        try {
+            const response = await fetch('https://api-ssl.bitly.com/v4/shorten', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${appState.bitlyToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ long_url: longUrl })
+            });
+            if (!response.ok) throw new Error('Bitly API request failed');
+            const data = await response.json();
+            return data.link;
+        } catch (error) {
+            console.error("Bitly error:", error);
+            showAlert("Info", "Gagal memendekkan URL dengan Bitly, menggunakan URL panjang.");
+            return longUrl;
+        }
+    }
+    
+    async function fetchLeaderboard() {
+        const loader = document.getElementById('leaderboard-loader');
+        const content = document.getElementById('leaderboard-content');
+        loader.classList.remove('hidden');
+        content.innerHTML = '';
+        
+        if (!appState.googleSheetUrl) {
+            showAlert("Error", "URL Google Sheet belum dikonfigurasi.");
+            loader.classList.add('hidden');
+            return;
+        }
+
+        try {
+            const urlWithCacheBuster = `${appState.googleSheetUrl}?action=getLeaderboard&v=${new Date().getTime()}`;
+            const response = await fetch(urlWithCacheBuster);
+            
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            
+            if(data.success && data.leaderboard.length > 0) {
+                let tableHTML = `<table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skor Akhir</th>
+                        </tr>
+                    </thead><tbody class="bg-white divide-y divide-gray-200">`;
+                
+                const medals = ['🥇', '🥈', '🥉'];
+                data.leaderboard.slice(0, 10).forEach((row, index) => {
+                    tableHTML += `<tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-lg font-bold">${medals[index] || index + 1}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${row.nama}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-indigo-600 font-bold">${row.skorAkhir.toFixed(2)}</td>
+                    </tr>`;
+                });
+                
+                tableHTML += `</tbody></table>`;
+                content.innerHTML = tableHTML;
+            } else {
+                content.innerHTML = `<p class="text-center text-gray-500">Belum ada data peserta yang masuk.</p>`;
+            }
+
+        } catch (error) {
+            console.error("Error fetching leaderboard:", error);
+            showAlert("Error", "Gagal memuat leaderboard. Pastikan Anda sudah melakukan Re-Deploy pada Google Script.");
+            content.innerHTML = `<p class="text-center text-red-500">Gagal memuat data.</p>`;
+        } finally {
+            loader.classList.add('hidden');
+        }
+    }
+
+
+    // --- PARTICIPANT FUNCTIONS ---
+    async function handleParticipantRegistration(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('name').value;
+        const company = document.getElementById('company').value;
+        if (!name || !company) {
+            showAlert("Data Tidak Lengkap", "Harap isi Nama Lengkap dan Perusahaan/Institusi.");
+            return;
+        }
+
+        participantLoader.classList.remove('hidden');
+        startQuizBtn.disabled = true;
+
+        try {
+            if (!appState.googleSheetUrl) {
+                showAlert("Error Konfigurasi", "URL Kuis tidak valid. Mohon pindai ulang QR Code yang benar dari pembicara.");
+                return;
+            }
+
+            const urlWithCacheBuster = `${appState.googleSheetUrl}?action=getQuiz&v=${new Date().getTime()}`;
+            const response = await fetch(urlWithCacheBuster);
+
+            if (!response.ok) throw new Error("Gagal menghubungi server kuis.");
+            
+            const data = await response.json();
+
+            if (data.success && data.isActive) {
+                appState.participantData = { name, company, phone: document.getElementById('phone').value };
+                appState.quizQuestions = data.questions;
+                startParticipantQuiz();
+            } else {
+                quizNotReadyMsg.classList.remove('hidden');
+                showAlert("Kuis Belum Aktif", "Mohon tunggu pembicara untuk memulai kuis.");
+            }
+        } catch (error) {
+            console.error("Failed to fetch quiz status:", error);
+            showAlert("Error", "Gagal memeriksa status kuis. Periksa koneksi Anda.");
+        } finally {
+            participantLoader.classList.add('hidden');
+            startQuizBtn.disabled = false;
+        }
+    }
+
+    function startParticipantQuiz() {
+        showPage(quizPage);
+        appState.quizSeconds = 0;
+        appState.currentQuestionIndex = 0;
+        appState.userAnswers = [];
+        startQuizTimer();
+        showNextQuestion();
+    }
+
+    function startQuizTimer() {
+        appState.quizTimer = setInterval(() => {
+            appState.quizSeconds++;
+            const min = Math.floor(appState.quizSeconds / 60).toString().padStart(2, '0');
+            const sec = (appState.quizSeconds % 60).toString().padStart(2, '0');
+            timerEl.textContent = `Waktu: ${min}:${sec}`;
+        }, 1000);
+    }
+
+    function showNextQuestion() {
+        appState.selectedOption = null;
+        nextBtn.disabled = true;
+        nextBtn.classList.add('opacity-50');
+
+        const q = appState.quizQuestions[appState.currentQuestionIndex];
+        questionCounter.textContent = `Soal ${appState.currentQuestionIndex + 1} / ${appState.quizQuestions.length}`;
+        questionText.textContent = q.question;
+        optionsContainer.innerHTML = '';
+        q.options.forEach(option => {
+            const optEl = document.createElement('div');
+            optEl.textContent = option;
+            optEl.className = 'p-4 rounded-lg quiz-option';
+            optEl.onclick = () => handleOptionSelect(optEl, option);
+            optionsContainer.appendChild(optEl);
+        });
+    }
+    
+    function handleOptionSelect(optionEl, option) {
+        optionsContainer.querySelectorAll('.quiz-option').forEach(el => el.classList.remove('selected'));
+        optionEl.classList.add('selected');
+        appState.selectedOption = option;
+        nextBtn.disabled = false;
+        nextBtn.classList.remove('opacity-50');
+    }
+    
+    function handleNextQuestion() {
+        if (appState.selectedOption) {
+            appState.userAnswers.push(appState.selectedOption);
+            appState.currentQuestionIndex++;
+            if (appState.currentQuestionIndex < appState.quizQuestions.length) {
+                showNextQuestion();
+            } else {
+                finishQuiz();
+            }
+        }
+    }
+
+    async function finishQuiz() {
+        clearInterval(appState.quizTimer);
+        let correctAnswers = 0;
+        appState.userAnswers.forEach((answer, index) => {
+            if (answer === appState.quizQuestions[index].answer) {
+                correctAnswers++;
+            }
+        });
+
+        const scoreJawaban = (correctAnswers / appState.quizQuestions.length) * 100;
+        const timeTaken = appState.quizSeconds;
+        const scoreWaktu = ((appState.maxTime * appState.quizQuestions.length / 5) - timeTaken) / (appState.maxTime * appState.quizQuestions.length / 5) * 100; // Adjusted max time
+        const finalScore = (scoreJawaban * 0.75) + (Math.max(0, scoreWaktu) * 0.25);
+
+        // Display results
+        showPage(resultPage);
+        resultName.textContent = appState.participantData.name;
+        resultCompany.textContent = appState.participantData.company;
+        resultTime.textContent = timerEl.textContent.replace('Waktu: ', '');
+        resultScore.textContent = finalScore.toFixed(2);
+
+        // Display detailed review
+        quizReviewDetails.innerHTML = '';
+        appState.quizQuestions.forEach((q, index) => {
+            const userAnswer = appState.userAnswers[index];
+            const isCorrect = userAnswer === q.answer;
+            const reviewItem = document.createElement('div');
+            reviewItem.className = `p-3 rounded-lg border ${isCorrect ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`;
+            
+            let answerHtml = `<p class="mt-2 text-sm">Jawaban Anda: <span class="font-semibold">${userAnswer}</span> <span class="${isCorrect ? 'text-green-600' : 'text-red-600'}">${isCorrect ? '✔ Benar' : '✖ Salah'}</span></p>`;
+            if (!isCorrect) {
+                answerHtml += `<p class="text-sm">Jawaban yang Benar: <span class="font-semibold text-green-700">${q.answer}</span></p>`;
+            }
+
+            reviewItem.innerHTML = `
+                <p class="font-semibold text-gray-800">${index + 1}. ${q.question}</p>
+                ${answerHtml}
+            `;
+            quizReviewDetails.appendChild(reviewItem);
+        });
+
+
+        // Send data to Google Sheet
+        const dataToSend = {
+            action: 'saveResult',
+            timestamp: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+            name: appState.participantData.name,
+            company: appState.participantData.company,
+            phone: appState.participantData.phone,
+            correctAnswers: correctAnswers,
+            timeTaken: timeTaken,
+            finalScore: finalScore
+        };
+        
+        try {
+            if(!appState.googleSheetUrl) throw new Error("Sheet URL not found");
+
+            await fetch(appState.googleSheetUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(dataToSend)
+            });
+        } catch (error) {
+            console.error("Failed to send data to Google Sheet:", error);
+        }
+    }
+
+
+    // --- INITIALIZATION ---
+    window.onload = () => {
+        // Event Listeners
+        document.getElementById('register-form').addEventListener('submit', handleParticipantRegistration);
+        nextBtn.addEventListener('click', handleNextQuestion);
+        questionCountSelect.addEventListener('change', () => {
+            if (questionCountSelect.value === 'custom') {
+                customQuestionCountInput.classList.remove('hidden');
+            } else {
+                customQuestionCountInput.classList.add('hidden');
+            }
+        });
+
+        // --- URL and Config Handling ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const scriptUrlFromQuery = urlParams.get('scriptUrl');
+        
+        if (scriptUrlFromQuery) {
+            const decodedUrl = decodeURIComponent(scriptUrlFromQuery);
+            appState.googleSheetUrl = decodedUrl;
+            localStorage.setItem('googleSheetUrl', decodedUrl);
+        } else {
+            const savedUrl = localStorage.getItem('googleSheetUrl');
+            if (savedUrl) {
+                appState.googleSheetUrl = savedUrl;
+                googleSheetUrlInput.value = savedUrl;
+            }
+        }
+        
+        // Load admin-specific config
+        const savedApiKey = localStorage.getItem('geminiApiKey');
+        const savedBitlyToken = localStorage.getItem('bitlyToken');
+        const savedPublicUrl = localStorage.getItem('publicAppUrl');
+
+        if (savedApiKey) {
+            geminiApiKeyInput.value = savedApiKey;
+            appState.geminiApiKey = savedApiKey;
+        }
+        if (savedBitlyToken) {
+            bitlyTokenInput.value = savedBitlyToken;
+            appState.bitlyToken = savedBitlyToken;
+        }
+        if (savedPublicUrl) {
+            publicAppUrlInput.value = savedPublicUrl;
+            appState.publicAppUrl = savedPublicUrl;
+        }
+        
+        if (appState.googleSheetUrl && appState.geminiApiKey && appState.publicAppUrl) {
+            generateQuizBtn.disabled = false;
+        }
+
+        // Check URL for routing
+        if (window.location.hash === '#admin') {
+            showAdminLoginPage();
+        } else {
+            showRoleSelectionPage();
+        }
+    };
+    </script>
+</body>
+</html>
