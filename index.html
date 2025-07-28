@@ -22,8 +22,8 @@
         .quiz-option.selected { background-color: #e0e7ff; border-color: #4f46e5; color: #3730a3; }
         .loader { border: 4px solid #f3f4f6; border-top: 4px solid #4f46e5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 50; }
-        .modal-content { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 60; }
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 50; display: flex; justify-content: center; align-items: center; }
+        .modal-content { z-index: 60; max-height: 90vh; overflow-y: auto; }
     </style>
 </head>
 <body class="bg-slate-100">
@@ -32,20 +32,79 @@
 
         <!-- ===== HALAMAN UTAMA (PEMILIHAN ROLE) ===== -->
         <div id="role-selection-page" class="card text-center">
-            <h1 class="text-2xl font-bold text-gray-800">Selamat Datang di Kuis Interaktif</h1>
-            <p class="text-gray-500 mt-2 mb-8">Silahkan pilih Anda sebagai apa?</p>
+            <h1 class="text-2xl font-bold text-gray-800">Selamat Datang!</h1>
+            <p class="text-gray-500 mt-2 mb-8">Silakan pilih peran Anda untuk melanjutkan.</p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <button onclick="showAdminLoginPage()" class="btn btn-primary">Pembuat Kuis (Admin)</button>
-                <button onclick="showParticipantPage()" class="btn btn-secondary">Peserta yang Menjawab Kuis</button>
+                <button onclick="showAdminLoginPage()" class="btn btn-primary">Saya Pembicara (Admin)</button>
+                <button onclick="showParticipantPage()" class="btn btn-secondary">Saya Peserta</button>
             </div>
         </div>
         
         <!-- ===== MODAL ALERT ===== -->
-        <div id="alert-modal" class="modal-backdrop hidden justify-center items-center">
+        <div id="alert-modal" class="modal-backdrop hidden">
             <div class="modal-content card w-11/12 max-w-sm text-center">
                 <h3 id="alert-title" class="text-lg font-bold text-gray-800">Pemberitahuan</h3>
                 <p id="alert-message" class="text-gray-600 my-4">Ini adalah pesan alert.</p>
                 <button onclick="closeAlert()" class="btn btn-primary mx-auto">Tutup</button>
+            </div>
+        </div>
+
+        <!-- ===== MODAL BANTUAN ===== -->
+        <div id="help-modal" class="modal-backdrop hidden">
+            <div class="modal-content card w-11/12 max-w-2xl text-left">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Panduan Konfigurasi</h2>
+                <div class="space-y-4 text-sm text-gray-700">
+                    <details class="p-2 border rounded-lg">
+                        <summary class="font-semibold cursor-pointer">1. Cara Mendapatkan URL Web App Google Sheet</summary>
+                        <div class="mt-2 space-y-1 pl-4">
+                            <p>Anda memerlukan skrip khusus untuk menyimpan hasil kuis.</p>
+                            <p>1. Buat Google Sheet baru di <a href="https://sheets.google.com/create" target="_blank" class="text-indigo-600 hover:underline">sheets.google.com/create</a>.</p>
+                            <p>2. Di dalam Sheet, klik menu <strong>Extensions > Apps Script</strong>.</p>
+                            <p>3. Hapus semua kode contoh, lalu salin & tempel kode skrip yang disediakan oleh aplikasi ini.</p>
+                            <p>4. Klik <strong>Deploy > New deployment</strong>.</p>
+                            <p>5. Klik ikon gerigi (⚙️), pilih <strong>Web app</strong>.</p>
+                            <p>6. Pada "Who has access", pilih <strong>Anyone</strong>.</p>
+                            <p>7. Klik <strong>Deploy</strong>, lalu <strong>Authorize access</strong> dan ikuti petunjuknya.</p>
+                            <p>8. Salin <strong>Web app URL</strong> yang muncul dan tempelkan di kolom konfigurasi.</p>
+                        </div>
+                    </details>
+                    <details class="p-2 border rounded-lg">
+                        <summary class="font-semibold cursor-pointer">2. Cara Mendapatkan Kunci API Gemini</summary>
+                        <div class="mt-2 space-y-1 pl-4">
+                            <p>1. Kunjungi <a href="https://aistudio.google.com/" target="_blank" class="text-indigo-600 hover:underline">Google AI Studio</a>.</p>
+                            <p>2. Login dengan akun Google Anda.</p>
+                            <p>3. Klik tombol <strong>"Get API key"</strong> di pojok kiri atas.</p>
+                            <p>4. Klik <strong>"Create API key in new project"</strong>.</p>
+                            <p>5. Salin API Key yang muncul dan tempelkan di kolom konfigurasi.</p>
+                        </div>
+                    </details>
+                    <details class="p-2 border rounded-lg">
+                        <summary class="font-semibold cursor-pointer">3. Cara Membuat URL Publik (dengan GitHub Pages)</summary>
+                        <div class="mt-2 space-y-1 pl-4">
+                            <p>Anda perlu meng-hosting file HTML ini agar bisa diakses publik.</p>
+                            <p>1. Buat akun di <a href="https://github.com" target="_blank" class="text-indigo-600 hover:underline">GitHub</a> jika belum punya.</p>
+                            <p>2. Buat <strong>repository baru</strong> (misal: `kuis-seminar`), pastikan statusnya <strong>Public</strong>.</p>
+                            <p>3. Di dalam repository tersebut, klik <strong>Add file > Create new file</strong>.</p>
+                            <p>4. Beri nama file `index.html`.</p>
+                            <p>5. Salin seluruh kode HTML aplikasi ini dan tempelkan ke dalam file `index.html` tersebut.</p>
+                            <p>6. Klik <strong>Commit changes</strong>.</p>
+                            <p>7. Buka tab <strong>Settings</strong> di repository Anda, lalu pilih <strong>Pages</strong> di menu samping.</p>
+                            <p>8. Pada bagian "Branch", pilih `main` dan klik <strong>Save</strong>.</p>
+                            <p>9. Tunggu beberapa menit, halaman akan menampilkan URL publik Anda (contoh: `https://nama-anda.github.io/kuis-seminar/`). Salin URL ini dan tempelkan di kolom konfigurasi.</p>
+                        </div>
+                    </details>
+                     <details class="p-2 border rounded-lg">
+                        <summary class="font-semibold cursor-pointer">4. Cara Mendapatkan Bitly Access Token (Opsional)</summary>
+                        <div class="mt-2 space-y-1 pl-4">
+                            <p>1. Login ke akun <a href="https://bitly.com/" target="_blank" class="text-indigo-600 hover:underline">Bitly</a> Anda.</p>
+                            <p>2. Klik menu profil Anda di pojok kanan atas, lalu pilih <strong>Settings</strong>.</p>
+                            <p>3. Pilih <strong>API</strong> di bawah "Developer settings".</p>
+                             <p>4. Di bawah bagian "Generic Access Token", masukkan password Bitly Anda dan klik <strong>Generate token</strong>.</p>
+                            <p>5. Salin token yang muncul dan tempelkan di kolom konfigurasi.</p>
+                        </div>
+                    </details>
+                </div>
+                <button onclick="closeHelpModal()" class="btn btn-secondary w-full mt-6">Tutup</button>
             </div>
         </div>
 
@@ -63,7 +122,10 @@
             <!-- Halaman Dashboard Admin -->
             <div id="admin-dashboard-page" class="hidden space-y-6">
                 <div class="card">
-                    <h2 class="text-xl font-bold mb-4">1. Konfigurasi</h2>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">1. Konfigurasi</h2>
+                        <button onclick="showHelpModal()" class="text-sm text-indigo-600 hover:underline">Butuh Bantuan?</button>
+                    </div>
                     <div>
                         <label for="google-sheet-url" class="block text-sm font-medium text-gray-700">URL Web App Google Sheet</label>
                         <input type="url" id="google-sheet-url" placeholder="Tempel URL dari Google Apps Script di sini" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
@@ -207,7 +269,7 @@
 
     <script>
     // --- GLOBAL STATE & CONFIG ---
-    let appState = {
+    var appState = {
         adminPassword: "seminar-keren-2025", // Ganti password di sini
         googleSheetUrl: '',
         geminiApiKey: '',
@@ -271,12 +333,18 @@
         document.getElementById('alert-title').textContent = title;
         document.getElementById('alert-message').textContent = message;
         document.getElementById('alert-modal').classList.remove('hidden');
-        document.getElementById('alert-modal').classList.add('flex');
     }
 
     function closeAlert() {
         document.getElementById('alert-modal').classList.add('hidden');
-        document.getElementById('alert-modal').classList.remove('flex');
+    }
+
+    function showHelpModal() {
+        document.getElementById('help-modal').classList.remove('hidden');
+    }
+
+    function closeHelpModal() {
+        document.getElementById('help-modal').classList.add('hidden');
     }
 
     function showPage(pageElement) {
